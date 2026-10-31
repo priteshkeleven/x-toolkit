@@ -1,0 +1,165 @@
+# Project conventions - x-toolkit
+
+This file is for any Claude Code agent working on this repository. Read it
+before making changes. Conventions here are mandatory unless the user asks
+otherwise.
+
+## Versioning
+
+- Single source of truth: `.claude-plugin/plugin.json`,
+  `.claude-plugin/marketplace.json`, `.codex-plugin/plugin.json`, and
+  `.agents/plugins/marketplace.json`. Plugin manifests must always match on
+  package name and version; marketplace entries must point to the same package;
+  author, license, homepage, and the public skill-bundle description must stay
+  aligned.
+- Keep `CLAUDE.md` and `AGENTS.md` aligned when changing shared project rules.
+  Claude-specific workflow details belong here; Codex-specific details belong in
+  `AGENTS.md`.
+- Codex marketplace install uses `.codex-marketplace/x-toolkit/`. Do not edit that
+  generated package by hand. Update the root files first, then run
+  `python3 scripts/sync_codex_marketplace.py`.
+- **Default: bump the PATCH segment (3rd level, `0.0.X`).** This is the automatic
+  behavior for every shippable commit, regardless of how large the diff feels.
+  Skill renames, lib API breaks, new features: still PATCH by default.
+- Only bump MINOR or MAJOR when **the user explicitly asks** for a higher rank
+  ("this is minor", "make it 2.0", "bump major"). Do not promote on your own
+  initiative even if semver textbook says so.
+- After bumping, two steps are required:
+  1. Tag the commit: `git tag -a v<X.Y.Z> -m "..."` + `git push origin v<X.Y.Z>`
+  2. **Publish a GitHub Release** for the tag: `gh release create v<X.Y.Z> --title "v<X.Y.Z>" --notes "<changelog>" --latest`
+  A tag alone does NOT update the README release badge. The shields.io badge
+  reads from the Releases API, not from raw tags. Skipping step 2 leaves it stale.
+
+## Commits
+
+- Commit as the repository owner (Pritesh K.). Upstream credit for Serge Bulaev
+  and wshuyi lives in `LICENSE` and the README, not in commit authorship.
+- Verify locally before push: build never breaks, no broken refs in `SKILL.md`,
+  library smoke import passes.
+
+## Skill bundle invariants
+
+- **Exactly 11 skills.** Adding requires merging or splitting elsewhere to stay at
+  11. The number is announced in plugin manifests, root `SKILL.md` and the README.
+- **Frontmatter `description:` target <= 400 chars** (some bundle-heavy skills
+  land slightly higher when their scope is genuinely broad; keep under 510).
+  Always include a "Not for X (use Y)" disambiguation sentinel when a skill
+  overlaps with a sibling.
+- **No em dashes anywhere in `description:` fields.** Em dashes in body prose are
+  allowed for table separators and list dividers only. No em dashes inside the
+  literal fill-in lines of any hook skeleton (they would leak into generated
+  tweets).
+- **Skill names are public surface.** Renaming a skill is a major version bump and
+  requires updating: `.codex-plugin/plugin.json`,
+  `.agents/plugins/marketplace.json`, `.claude-plugin/plugin.json`,
+  `.claude-plugin/marketplace.json`, root `SKILL.md` bundle list, README skill
+  table, and every `x-<name>` cross-reference in sibling SKILL.md files.
+
+## Voice rules + reference layout
+
+- Canonical voice rules live at root `references/voice-rules.md`. Skill-local
+  "Hard rules" sections must only contain skill-specific overrides (char ranges,
+  thread rules, format constraints) and start with: `Global voice rules: see root
+  SKILL.md Voice rules.`
+- Other root-level references shared across skills:
+  `references/hook-formulas.md` (11 X formulas), `references/algorithm-heuristics.md`
+  (posting rules) and `references/x-ranking-signals.md` (what X's published
+  ranking code weights, with file citations at a pinned commit).
+- **Algorithm claims must trace to the code.** Any statement in a skill about how X
+  ranks posts either cites `references/x-ranking-signals.md` or is labelled as
+  observed / not in the code. When `xai-org/x-algorithm` changes, re-read
+  `home-mixer/params/param.rs`, `vm-ranker/params.rs` and the filters, update
+  `x-ranking-signals.md` and its commit hash, then the skills that cite it.
+- The goal vocabulary is fixed across skills: Conversation, Send, Follow,
+  Read-through. Likes, reposts and bookmarks are never a post's primary goal.
+- `references/untrusted-content.md` is the canonical data-is-not-instructions
+  rule for every skill that reads text a stranger wrote. Each such skill carries
+  a short `## Untrusted content` section that cites it; the full rule lives in
+  one place. `scripts/check_untrusted_rule.py` enforces both, driven by a
+  `REQUIRED` set of skill names, so **renaming or adding a reading skill means
+  updating that set**.
+- `references/voice-profile.md` and `references/story-bank.md` (what you have to say, filled by
+  `--mode interview`) ship **blank** and the user fills them.
+  A filled one is personal data, not a credential: `check_no_secrets.py` fails on
+  any tracked copy marked `filled: yes`, and `sync_codex_marketplace.py` takes
+  both from HEAD rather than the working tree and refuses to copy a filled one.
+- **A project `.env` may set credentials only.** `lib/_env.py` keeps an allowlist
+  (`_DOTENV_VARIABLES`); the custom-poster variable the DIY tier executes must come
+  from the launch environment, never from a file that can arrive with a clone. No
+  module may call `load_dotenv()` itself, and every authenticated request passes
+  `allow_redirects=False` because the Publora key rides a custom header and the
+  Apify token a query parameter, neither of which `requests` strips across hosts.
+  `scripts/check_security_boundaries.py` enforces all three.
+- `references/mcp-read-layer.md` is the read path for anyone without a shell, which
+  is everyone on claude.ai: the filtered `mcp.apify.com?actors=` connector URL, the
+  tool name, the four input shapes, and the mapping back to the records `_tweet`
+  produces. **Keep the filter**: the bare server also hands the agent `call-actor`.
+  `scripts/check_mcp_mapping.py` fails if the actor id, an input key or a flat field
+  drifts from `lib/apify_client.py`, in either direction.
+- Skill-local references live in `skills/<skill>/references/`. Cite from the skill
+  with bare `references/X.md`. Cite root from skills with `../../references/X.md`.
+- `x-humanizer` has `sub-skills/` for the folded-in post-audit workflow. Don't
+  duplicate this pattern in other skills without a clear reason.
+
+## Layer separation
+
+- **Write layer (Publora):** `lib/publora_client.py`. Two methods used by the
+  bundle: `create_post` (single tweet or thread; pass long content and Publora
+  auto-splits into a numbered `(1/N)` thread) and `list_connections` /
+  `x_connections` (GET /platform-connections). Skills should call
+  `lib.publish(kind, draft_text, target_url, ...)` rather than inline the
+  publora / manual / diy dispatch. Real endpoint: `POST /create-post` with
+  `platforms: ["twitter-<id>"]` (an array of STRING ids), header `x-publora-key`.
+- **X has no comment/reply/reaction endpoint on Publora** (those are LinkedIn
+  only), and `create-post` has no `in_reply_to`. So `kind="reply"` always routes
+  to a manual copy-paste block in `lib/backend_selector.py`.
+- **No read layer ships by default.** There is no cheap, documented X tweet-read
+  actor wired in. `x-hook-extractor` and `x-reply-drafter` ask the user to paste
+  the tweet text. If a tweet-read actor is added later, gate it behind
+  `APIFY_TOKEN` and keep the paste fallback.
+- Don't name competing third-party schedulers in committed files. The bundle is
+  positioned around the Publora write integration.
+
+- **Image layer (Pixfaro):** `lib/pixfaro_client.py`. Call `lib.illustrate(prompt, kind=...)` / `lib.refine(image_id, instruction)` (not the client directly); the returned hosted URL feeds `lib.publish(..., media_urls=[url])`. `refine` edits by `img_...` id (not URL); `aspect_ratio` is a ratio like `16:9` (not pixel dims). PIXFARO_TOKEN-or-manual fallback, keyed singleton + LRU cache; `overlay` brand fields come from `references/voice-profile.md` §6.
+
+## Codex marketplace package
+
+- Codex requires marketplace entries to point at a nested plugin directory. The
+  root remains the Claude-facing source layout.
+- `.agents/plugins/marketplace.json` points to `.codex-marketplace/x-toolkit`.
+- `scripts/sync_codex_marketplace.py` copies the root Codex manifest, `SKILL.md`,
+  `skills/`, `references/`, `lib/`, `scripts/`, `requirements.txt`, `.env.example`,
+  and `LICENSE` into the hidden package.
+- After editing any copied file, run the sync script before testing or committing.
+
+## testing/ is gitignored
+
+- `testing/` is the local scratch directory: API keys, sample API responses,
+  validation reports, integration scripts.
+- Never write secrets above `testing/` (the rest of the repo is public).
+- The `.gitignore` rule for `testing/` is load-bearing; do not change it.
+
+## Validation before push
+
+Run from repo root:
+
+```bash
+python3 -c "from lib import publish, illustrate, refine, PixfaroClient, parse_x_url, PubloraClient; print('OK')"
+python3 scripts/sync_codex_marketplace.py
+ls skills/ | wc -l        # must equal 11
+python3 -m unittest discover -s tests   # precheck and article parser
+python3 scripts/check_frontmatter.py   # parses; a dir count does not prove a skill loads
+python3 scripts/check_no_secrets.py    # .gitignore does not stop a rename of a tracked file
+python3 scripts/check_markdown_references.py  # run from inside the repo; it anchors on its own path
+python3 scripts/check_untrusted_rule.py  # the rule must sit in the skills, not only in references/
+python3 scripts/check_text_encoding.py  # a bare read_text() is cp1252 on Windows, mojibake or a crash
+python3 scripts/check_security_boundaries.py  # .env may not name an executable; no authenticated redirects
+python3 scripts/check_mcp_mapping.py  # the connector path must produce the library's records, not a second shape
+grep -rnP '\x{2014}|\x{2013}' skills/*/SKILL.md SKILL.md | grep -i '^.*description:'   # must be empty
+python3 -m json.tool .codex-plugin/plugin.json >/dev/null
+python3 -m json.tool .agents/plugins/marketplace.json >/dev/null
+python3 -m json.tool .claude-plugin/plugin.json >/dev/null
+python3 -m json.tool .claude-plugin/marketplace.json >/dev/null
+```
+
+If any of these fail, do not push.

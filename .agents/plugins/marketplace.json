@@ -1,0 +1,20 @@
+{
+  "name": "x-toolkit",
+  "interface": {
+    "displayName": "X Toolkit"
+  },
+  "plugins": [
+    {
+      "name": "x-toolkit",
+      "source": {
+        "source": "local",
+        "path": "./.codex-marketplace/x-toolkit"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Productivity"
+    }
+  ]
+}
