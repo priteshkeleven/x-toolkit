@@ -6,7 +6,9 @@ Adapted from wshuyi's parse_markdown.py (x-article-publisher-skill, MIT). Change
 text is HTML-escaped before conversion, ordered lists stay ordered, H4 is
 supported, a word count is reported, and a missing image is reported as missing
 instead of being replaced by a same-named file found in Downloads, Desktop or
-Pictures (which could upload the wrong, possibly private, image).
+Pictures (which could upload the wrong, possibly private, image). Image paths
+must be image files inside the article's folder: absolute paths, `..` escapes
+and non-image files are rejected with a reason, never offered for upload.
 
 Extracts:
 - Title (first H1, else first H2, else first line)
@@ -31,6 +33,7 @@ import sys
 import urllib.parse
 from pathlib import Path
 
+IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".gif", ".webp"}
 UL_ITEM = re.compile(r"^\s*[-*] ")
 OL_ITEM = re.compile(r"^\s*\d+\. ")
 
@@ -91,6 +94,27 @@ def _after_text(clean_blocks: list[str]) -> str:
     return lines[-1][:80] if lines else ""
 
 
+def resolve_image(src: str, base_path: Path) -> tuple[str, bool, str]:
+    """Return (path, usable, problem). An image is usable only if it is a local
+    image file inside the article's folder. A Markdown file can come from anyone,
+    and its image paths are what get uploaded, so `![](/Users/me/.ssh/id_rsa)` or
+    `../../secrets.png` must never come back as something to upload."""
+    if re.match(r"^https?://", src):
+        return src, False, "remote image; download it into the article folder first"
+    local = Path(urllib.parse.unquote(src))
+    if local.is_absolute():
+        return str(local), False, "absolute path rejected; move the image into the article folder"
+    root = base_path.resolve()
+    path = (root / local).resolve()
+    if root != path and root not in path.parents:
+        return str(path), False, "path outside the article folder rejected"
+    if path.suffix.lower() not in IMAGE_EXTENSIONS:
+        return str(path), False, "not an image file (" + ", ".join(sorted(IMAGE_EXTENSIONS)) + ")"
+    if not path.is_file():
+        return str(path), False, "image not found"
+    return str(path), True, ""
+
+
 def extract_images_and_dividers(markdown: str, base_path: Path):
     """Return (images, dividers, markdown_without_them, total_blocks)."""
     images, dividers, clean = [], [], []
@@ -104,15 +128,10 @@ def extract_images_and_dividers(markdown: str, base_path: Path):
         match = img_pattern.match(stripped)
         if match:
             alt, src = match.group(1), match.group(2)
-            if re.match(r"^https?://", src):
-                path, exists = src, False   # remote: download it yourself before upload
-            else:
-                local = urllib.parse.unquote(src)
-                path = local if os.path.isabs(local) else str(base_path / local)
-                exists = os.path.isfile(path)
-            if not exists:
-                print(f"[parse_markdown] WARNING: image not found locally: {path}", file=sys.stderr)
-            images.append({"path": path, "exists": exists, "alt": alt,
+            path, exists, problem = resolve_image(src, base_path)
+            if problem:
+                print(f"[parse_markdown] WARNING: {problem}: {src}", file=sys.stderr)
+            images.append({"path": path, "exists": exists, "problem": problem, "alt": alt,
                            "block_index": len(clean), "after_text": _after_text(clean)})
         else:
             clean.append(block)

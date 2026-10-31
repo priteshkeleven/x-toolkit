@@ -12,9 +12,10 @@ present here in the same shape, because these clients share an ancestor.
 2. **No module may load a .env behind load_env's back.** A direct load_dotenv()
    call reopens boundary 1 for whatever imports it.
 3. **Authenticated requests may not follow redirects.** The Publora key rides a
-   custom header and the Apify token rides a query parameter; requests strips
-   Authorization across hosts but not either of those, so a redirect hands the
-   credential, and on POST the body, to whoever answered.
+   custom header, which requests does not strip across hosts, so a redirect hands
+   the credential, and on POST the body, to whoever answered. The Apify token now
+   rides an Authorization header (it used to be a query parameter, which also
+   leaked into exception messages); the rule still holds for it.
 
 Run from the repo root:
 

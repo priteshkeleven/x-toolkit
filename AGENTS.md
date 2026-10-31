@@ -80,8 +80,9 @@ making changes. Conventions here are mandatory unless the user asks otherwise.
   (`_DOTENV_VARIABLES`); the custom-poster variable the DIY tier executes must come
   from the launch environment, never from a file that can arrive with a clone. No
   module may call `load_dotenv()` itself, and every authenticated request passes
-  `allow_redirects=False` because the Publora key rides a custom header and the
-  Apify token a query parameter, neither of which `requests` strips across hosts.
+  `allow_redirects=False` because the Publora key rides a custom header that
+  `requests` does not strip across hosts. The Apify token goes in an Authorization
+  header, never the URL, and the client redacts it from error messages.
   `scripts/check_security_boundaries.py` enforces all three.
 - `references/mcp-read-layer.md` is the read path for anyone without a shell, which
   is everyone on claude.ai: the filtered `mcp.apify.com?actors=` connector URL, the

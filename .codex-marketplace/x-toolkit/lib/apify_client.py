@@ -114,16 +114,22 @@ class ApifyClient:
         while len(self._cache) > CACHE_MAX_ENTRIES:
             self._cache.popitem(last=False)
 
+    def _redact(self, text: str) -> str:
+        """Keep the token out of any message that may be printed or logged."""
+        return text.replace(self.token, "***") if self.token else text
+
     @_retry()
     def _run(self, payload: dict) -> list[dict]:
+        # The token travels in the Authorization header, never in the URL, so it
+        # cannot surface in an exception message, a proxy log or a redirect.
         try:
             r = requests.post(RUN_SYNC.format(actor=ACTOR),
-                              params={"token": self._require()}, json=payload,
-                              allow_redirects=False, timeout=self.timeout)
+                              headers={"Authorization": f"Bearer {self._require()}"},
+                              json=payload, allow_redirects=False, timeout=self.timeout)
         except requests.RequestException as e:
-            err = ApifyError(f"network error: {e}"); err.status = 503; raise err
+            err = ApifyError(self._redact(f"network error: {e}")); err.status = 503; raise err
         if r.status_code >= 400:
-            err = ApifyError(f"actor returned {r.status_code}: {r.text[:200]}")
+            err = ApifyError(self._redact(f"actor returned {r.status_code}: {r.text[:200]}"))
             err.status = r.status_code; raise err
         data = r.json()
         if not isinstance(data, list):

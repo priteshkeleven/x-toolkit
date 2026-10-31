@@ -90,6 +90,24 @@ class ParseArticle(unittest.TestCase):
         for folder in ('"Downloads"', '"Desktop"', '"Pictures"'):
             self.assertNotIn(folder, source)
 
+    def test_paths_outside_the_article_folder_are_rejected(self):
+        """A Markdown file can come from anyone; its image paths get uploaded."""
+        root = pathlib.Path(self.tmp.name)
+        (root / "notes.txt").write_text("secret", encoding="utf-8")
+        outside = pathlib.Path(self.tmp.name).parent / "outside.png"
+        for src, reason in (("/etc/passwd", "absolute"),
+                            ("../outside.png", "outside"),
+                            ("notes.txt", "not an image")):
+            path, usable, problem = parser.resolve_image(src, root)
+            self.assertFalse(usable, src)
+            self.assertIn(reason, problem, src)
+        self.assertFalse(outside.exists())
+
+    def test_an_image_inside_the_folder_is_usable(self):
+        path, usable, problem = parser.resolve_image("cover.png", pathlib.Path(self.tmp.name))
+        self.assertTrue(usable)
+        self.assertEqual(problem, "")
+
     def test_after_text_hides_internal_markers(self):
         self.assertNotIn("___CODE_BLOCK", self.result["content_images"][0]["after_text"])
 

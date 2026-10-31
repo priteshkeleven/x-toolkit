@@ -63,8 +63,11 @@ a result; leave `{{your number}}` and flag it.
    - Code blocks become blockquotes automatically (the editor has no code block).
 6. **Parse.** `python3 scripts/parse_markdown.py article.md > article.json` and
    `python3 scripts/parse_markdown.py article.md --html-only > article.html`.
-   Check `missing_images`: every image must exist locally before upload. Remote
-   images are listed as missing; download them first.
+   Check `missing_images` and each image's `problem`: only image files inside
+   the article's folder are usable. Remote images, absolute paths, paths that
+   leave the folder and non-image files are rejected with the reason; tell the
+   user and ask them to move the image into the folder. Never upload a file the
+   parser rejected.
 7. **Hand off for paste** (default):
    - `python3 scripts/copy_to_clipboard.py html --file article.html`
    - Give the user the steps: open `https://x.com/compose/articles`, create a new
