@@ -1,0 +1,42 @@
+{
+  "name": "x-toolkit",
+  "description": "11 Claude Code and Codex skills for X (Twitter), aligned with X's published ranking code (xai-org/x-algorithm): post writer, thread builder, Article writer and formatter, reply and quote drafter, humanizer with a runnable precheck for weighted length and spam traps, hook extractor, research briefings, audience insights, content planner, repurposer, profile optimizer.",
+  "version": "1.0.0",
+  "author": {
+    "name": "Pritesh K.",
+    "url": "https://github.com/priteshkeleven"
+  },
+  "license": "MIT",
+  "homepage": "https://github.com/priteshkeleven/x-toolkit",
+  "repository": "https://github.com/priteshkeleven/x-toolkit",
+  "keywords": [
+    "x",
+    "twitter",
+    "marketing",
+    "social-media",
+    "claude-skills",
+    "codex-skills",
+    "x-algorithm"
+  ],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "X Toolkit",
+    "shortDescription": "X (Twitter) marketing skills for Claude Code and Codex.",
+    "longDescription": "11 X (Twitter) skills for Claude Code and Codex, aligned with X's published For You ranking code: posts, threads, Articles, replies and quotes, research briefings, audience insights, planning, repurposing, profile rewrites, and a humanizer with a local precheck for weighted length and the code's spam traps.",
+    "developerName": "Pritesh K.",
+    "category": "Productivity",
+    "capabilities": [
+      "Interactive",
+      "Read",
+      "Write"
+    ],
+    "websiteURL": "https://github.com/priteshkeleven/x-toolkit",
+    "defaultPrompt": [
+      "Draft a tweet from my notes.",
+      "Turn this into a 7-tweet thread.",
+      "Plan a week of X content."
+    ],
+    "brandColor": "#000000",
+    "composerIcon": "./assets/icon.svg"
+  }
+}
